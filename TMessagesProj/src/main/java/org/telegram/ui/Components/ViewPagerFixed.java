@@ -18,6 +18,7 @@ import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.os.SystemClock;
+import android.os.Trace;
 import android.text.Layout;
 import android.text.TextPaint;
 import android.text.TextUtils;
@@ -46,6 +47,7 @@ import androidx.recyclerview.widget.LinearSmoothScroller;
 import androidx.recyclerview.widget.RecyclerView;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.BuildConfig;
 import org.telegram.messenger.AnimationNotificationsLocker;
 import org.telegram.messenger.Emoji;
 import org.telegram.messenger.MessagesController;
@@ -1248,9 +1250,33 @@ public class ViewPagerFixed extends FrameLayout {
     }
 
 
+    protected boolean shouldEndItemAnimationsOnPageRemoval() {
+        return true;
+    }
+
     private void removePage(View page) {
-        endItemAnimations(page);
-        removeView(page);
+        if (shouldEndItemAnimationsOnPageRemoval()) {
+            if (BuildConfig.MAIN_TABS_JANK_TRACE) {
+                Trace.beginSection("ViewPager.endItemAnimations");
+            }
+            try {
+                endItemAnimations(page);
+            } finally {
+                if (BuildConfig.MAIN_TABS_JANK_TRACE) {
+                    Trace.endSection();
+                }
+            }
+        }
+        if (BuildConfig.MAIN_TABS_JANK_TRACE) {
+            Trace.beginSection("ViewPager.removePage");
+        }
+        try {
+            removeView(page);
+        } finally {
+            if (BuildConfig.MAIN_TABS_JANK_TRACE) {
+                Trace.endSection();
+            }
+        }
     }
 
     private static void endItemAnimations(View view) {

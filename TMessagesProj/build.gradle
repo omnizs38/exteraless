@@ -186,6 +186,8 @@ android {
         buildConfigField 'String', 'APP_HASH', '"' + appHash + '"'
         buildConfigField 'long', 'BUILD_TIMESTAMP', buildTimestamp + 'L'
         buildConfigField 'boolean', 'DEBUG_TOOLS', String.valueOf(project.findProperty('debugTools') == 'true')
+        buildConfigField 'boolean', 'MAIN_TABS_JANK_TRACE', String.valueOf(project.findProperty('mainTabsJankTrace') == 'true')
+        buildConfigField 'boolean', 'MAIN_TABS_SKIP_ITEM_ANIMATION_CLEANUP', String.valueOf(project.findProperty('mainTabsSkipItemAnimationCleanup') == 'true')
 
         externalNativeBuild {
             cmake {

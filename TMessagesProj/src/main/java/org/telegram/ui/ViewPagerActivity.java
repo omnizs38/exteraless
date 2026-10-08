@@ -5,6 +5,7 @@ import static org.telegram.messenger.AndroidUtilities.dpf2;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Path;
+import android.os.Trace;
 import android.util.SparseArray;
 import android.view.MotionEvent;
 import android.view.View;
@@ -16,6 +17,7 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.BuildConfig;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
@@ -78,46 +80,55 @@ public abstract class ViewPagerActivity extends BaseFragment {
 
             @Override
             public void bindView(View view, int position, int viewType) {
-                FragmentState state = fragmentsArr.get(position);
-                final BaseFragment fragment;
-                if (state != null) {
-                    fragment = state.fragment;
-                } else {
-                    fragment = createBaseFragmentAt(position);
-
-                    state = new FragmentState(fragment);
-                    fragmentsArr.put(position, state);
+                if (BuildConfig.MAIN_TABS_JANK_TRACE) {
+                    Trace.beginSection("MainTabs.bindView");
                 }
+                try {
+                    FragmentState state = fragmentsArr.get(position);
+                    final BaseFragment fragment;
+                    if (state != null) {
+                        fragment = state.fragment;
+                    } else {
+                        fragment = createBaseFragmentAt(position);
 
-                if (!state.onCreateCalled) {
-                    fragment.onFragmentCreate();
-                    state.onCreateCalled = true;
+                        state = new FragmentState(fragment);
+                        fragmentsArr.put(position, state);
+                    }
+
+                    if (!state.onCreateCalled) {
+                        fragment.onFragmentCreate();
+                        state.onCreateCalled = true;
+                    }
+
+                    fragment.setParentLayout(getParentLayout());
+                    if (fragment.getFragmentView() == null) {
+                        fragment.performCreateView(context);
+                        fragment.setTitleOverlayText(titleOverlay, titleOverlayId, titleOverlayAction);
+                    }
+
+                    FrameLayout container = (FrameLayout) view;
+                    container.removeAllViews();
+
+                    final View fragmentView = fragment.getFragmentView();
+                    AndroidUtilities.removeFromParent(fragmentView);
+                    if (!fragment.hasOwnBackground() && fragmentView.getBackground() == null) {
+                        fragmentView.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+                    }
+
+                    container.addView(fragmentView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+                    if (fragment.getActionBar() != null && fragment.getActionBar().shouldAddToContainer()) {
+                        AndroidUtilities.removeFromParent(fragment.getActionBar());
+                        container.addView(fragment.getActionBar());
+                    }
+
+                    ViewCompat.requestApplyInsets(container);
+                    checkSystemBarColors();
+                    checkFragmentsVisibility();
+                } finally {
+                    if (BuildConfig.MAIN_TABS_JANK_TRACE) {
+                        Trace.endSection();
+                    }
                 }
-
-                fragment.setParentLayout(getParentLayout());
-                if (fragment.getFragmentView() == null) {
-                    fragment.performCreateView(context);
-                    fragment.setTitleOverlayText(titleOverlay, titleOverlayId, titleOverlayAction);
-                }
-
-                FrameLayout container = (FrameLayout) view;
-                container.removeAllViews();
-
-                final View fragmentView = fragment.getFragmentView();
-                AndroidUtilities.removeFromParent(fragmentView);
-                if (!fragment.hasOwnBackground() && fragmentView.getBackground() == null) {
-                    fragmentView.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
-                }
-
-                container.addView(fragmentView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
-                if (fragment.getActionBar() != null && fragment.getActionBar().shouldAddToContainer()) {
-                    AndroidUtilities.removeFromParent(fragment.getActionBar());
-                    container.addView(fragment.getActionBar());
-                }
-
-                ViewCompat.requestApplyInsets(container);
-                checkSystemBarColors();
-                checkFragmentsVisibility();
             }
         });
 
@@ -499,10 +510,25 @@ public abstract class ViewPagerActivity extends BaseFragment {
         }
 
         @Override
+        protected boolean shouldEndItemAnimationsOnPageRemoval() {
+            // A/B experiment: keep other ViewPagerFixed consumers unchanged.
+            return !BuildConfig.MAIN_TABS_SKIP_ITEM_ANIMATION_CLEANUP;
+        }
+
+        @Override
         public void onViewRemoved(View child) {
             super.onViewRemoved(child);
             if (child instanceof ViewPagerFragmentRootLayout && !child.isAttachedToWindow()) {
-                ((ViewPagerFragmentRootLayout) child).removeAllViews();
+                if (BuildConfig.MAIN_TABS_JANK_TRACE) {
+                    Trace.beginSection("MainTabs.clearPageChildren");
+                }
+                try {
+                    ((ViewPagerFragmentRootLayout) child).removeAllViews();
+                } finally {
+                    if (BuildConfig.MAIN_TABS_JANK_TRACE) {
+                        Trace.endSection();
+                    }
+                }
             }
         }
     }
